@@ -162,8 +162,6 @@ current_seconds=$(date +%s)
 # Calculate the difference in seconds
 total_seconds=$((current_seconds - start_seconds))
 
-
-
 # Read the remaining input from here document
 input_data=$(cat << EOF
 $journalctl_output_suspend
@@ -174,7 +172,7 @@ EOF
 
 # Split the input into lines
 IFS=$'\n' read -r -d '' -a lines <<< "$input_data"
-
+difference=0
 # Calculate the difference in seconds for each line
 for ((i = 0; i < ${#lines[@]} - 1; i++)); do
     current_line="${lines[$i]}"
@@ -182,7 +180,7 @@ for ((i = 0; i < ${#lines[@]} - 1; i++)); do
 
     # Extract the timestamps from the lines
     current_timestamp=$(echo "$current_line" | awk '{print $1, $2, $3}')
-    next_timestamp=$(echo "$nedifferencext_line" | awk '{print $1, $2, $3}')
+    next_timestamp=$(echo "$next_line" | awk '{print $1, $2, $3}')
 
     # Convert timestamps to seconds
     current_seconds=$(date_to_seconds "$current_timestamp")
