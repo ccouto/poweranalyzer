@@ -143,15 +143,15 @@ seconds_to_hms() {
 }
 
 # Get the first line from "journalctl -b 0"
-journalctl_output=$(journalctl --since "@$start_bat" | head -n 1)
-journalctl_output_suspend=$(journalctl --since "@$start_bat" -t systemd-sleep |grep -E "systemd-sleep.*sleep state")
+journalctl_output=$(journalctl -o short-iso --since "@$start_bat" | head -n 1)
+journalctl_output_suspend=$(journalctl -o short-iso --since "@$start_bat" -t systemd-sleep |grep -E "systemd-sleep.*sleep state")
 
 current_seconds=$(date +%s)
 # Get the start date from "journalctl -b 0 | head -n 1"
 # original start_date:
 #start_date=$(journalctl --since "@$start_bat" | head -n 1 | awk '{print $1, $2, $3}')
 # we use this to avoid recalling journalct:
-start_date=$(echo $journalctl_output | head -n 1 | awk '{print $1, $2, $3}')
+start_date=$(echo $journalctl_output | head -n 1 | awk '{print $1}')
 
 # Convert start date to seconds
 start_seconds=$(date_to_seconds "$start_date")
@@ -179,8 +179,10 @@ for ((i = 0; i < ${#lines[@]} - 1; i++)); do
     next_line="${lines[$i + 1]}"
 
     # Extract the timestamps from the lines
-    current_timestamp=$(echo "$current_line" | awk '{print $1, $2, $3}')
-    next_timestamp=$(echo "$next_line" | awk '{print $1, $2, $3}')
+    #current_timestamp=$(echo "$current_line" | awk '{print $1, $2, $3}')
+    current_timestamp=$(echo "$current_line" | awk '{print $1}')
+    #next_timestamp=$(echo "$next_line" | awk '{print $1, $2, $3}')
+    next_timestamp=$(echo "$next_line" | awk '{print $1}')
 
     # Convert timestamps to seconds
     current_seconds=$(date_to_seconds "$current_timestamp")
