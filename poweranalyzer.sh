@@ -1,5 +1,11 @@
 #!/bin/bash
 
+test="1,9"
+test_float=$(echo $test | tr , .)
+echo $test_float
+bat_lastcharge=$(awk "BEGIN {print $test_float / 1.1}")
+echo $bat_lastcharge
+
 # Get battery information using upower command
 output=$(upower -i /org/freedesktop/UPower/devices/battery_BAT0)
 
