@@ -224,7 +224,8 @@ echo ""
 #final estimations
 estimated_empty_time=$(awk -v er="$calculated_value" -v cb="$cur_battery" 'BEGIN {print (cb/er) * 3600}')
 #echo "time is $estimated_empty_time"
-estimated_empty_time=$(printf "%.0f" "$estimated_empty_time")
+#estimated_empty_time=$(printf "%.0f" "$estimated_empty_time")
+LC_NUMERIC=C estimated_empty_time=$(LC_NUMERIC=C printf "%.0f" $estimated_empty_time)
 formatted_output=$(seconds_to_hms "estimated_empty_time")
 echo "Time to empty:		$formatted_output"
 
