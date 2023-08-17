@@ -1,10 +1,10 @@
 #!/bin/bash
 
-test="1,9"
-test_float=$(echo $test | tr , .)
-echo $test_float
-bat_lastcharge=$(awk "BEGIN {print $test_float / 1.1}")
-echo $bat_lastcharge
+# test="1,9"
+# test_float=$(echo $test | tr , .)
+# echo $test_float
+# bat_lastcharge=$(awk "BEGIN {print $test_float / 1.1}")
+# echo $bat_lastcharge
 
 # Get battery information using upower command
 output=$(upower -i /org/freedesktop/UPower/devices/battery_BAT0)
@@ -14,15 +14,15 @@ model=$(echo "$output" | grep "model:" | awk '{print $2}')
 serial=$(echo "$output" | grep "serial:" | awk '{print $2}')
 
 #Extract current status of the battery
-bat_full=$(echo "$output" | grep "energy-full:" | awk '{print $2}')
-cur_battery=$(echo "$output" | grep "energy:" | awk '{print $2}')
-cur_battery_percent=$(echo "$output" | grep "percentage:" | awk '{print $2}')
-cur_state=$(echo "$output" | grep "state:" | awk '{print $2}')
+bat_full=$(echo "$output" | grep "energy-full:" | awk '{print $2}' | tr , .)
+cur_battery=$(echo "$output" | grep "energy:" | awk '{print $2}' | tr , .)
+cur_battery_percent=$(echo "$output" | grep "percentage:" | awk '{print $2}' | tr , .)
+cur_state=$(echo "$output" | grep "state:" | awk '{print $2}' | tr , .)
 
 # Check if cur_state is "charging"
 if [ "$cur_state" = "charging" ]; then
     echo "Stopping script: Battery is charging"
-    exit 1  # Exit the script with a non-zero status code
+    #exit 1  # Exit the script with a non-zero status code
 fi
 
 #echo "Model is $model"
@@ -100,14 +100,14 @@ first_discharging_line=$(grep "unknown" "/var/lib/upower/$file" | tail -n 1)
     fi
 
 # Split last_charging_line by spaces and extract date and bat_lastcharge values
-read -r start_bat bat_lastcharge _ <<< "$last_charging_line"
+read -r start_bat bat_lastcharge _ <<< "$last_charging_line | tr , ."
 
 # We compare the last charging date with the last boot
-start_date=$(journalctl -b 0 | head -n 1 | awk '{print $1, $2, $3}')
-start_date_unix=$(date -d "$start_date" +"%s")
-if [[ "$start_date_unix" > "$start_bat" ]]; then
-    start_bat_ignore="$start_date_unix"
-fi
+#start_date=$(journalctl -b 0 | head -n 1 | awk '{print $1, $2, $3}')
+#start_date_unix=$(date -d "$start_date" +"%s")
+#if [[ "$start_date_unix" > "$start_bat" ]]; then
+#    start_bat_ignore="$start_date_unix"
+#fi
 
 # Echo the extracted values
 #echo "Last Discharging Line: $last_discharging_line"
@@ -121,12 +121,9 @@ echo "Percentage:			$cur_battery_percent"
 #check if a least 1% of battery have been consumed, stop otherwise
 cur_battery_percent=${cur_battery_percent%"%"}  #we remove the % symbol
 bat_lastcharge=$(printf "%.0f" "$bat_lastcharge")
-difference=$((bat_lastcharge - cur_battery_percent))
+difference_bat=$((bat_lastcharge - cur_battery_percent))
 #
-if ((difference <= 1)); then
-    echo "Stopping script not enough reading data"
-    exit 1  # Exit the script with a non-zero status code
-fi
+
 
 bat_lastcharge=$(awk "BEGIN {print $bat_lastcharge * $bat_full / 100}")
 #echo "Calculated last charge:		$bat_lastcharge	Wh"
@@ -185,7 +182,7 @@ for ((i = 0; i < ${#lines[@]} - 1; i++)); do
 
     # Extract the timestamps from the lines
     current_timestamp=$(echo "$current_line" | awk '{print $1, $2, $3}')
-    next_timestamp=$(echo "$next_line" | awk '{print $1, $2, $3}')
+    next_timestamp=$(echo "$nedifferencext_line" | awk '{print $1, $2, $3}')
 
     # Convert timestamps to seconds
     current_seconds=$(date_to_seconds "$current_timestamp")
@@ -205,7 +202,10 @@ done
 
 formatted_output=$(seconds_to_hms "$total_seconds")
 echo "Running on battery for:		$formatted_output"
-
+if ((difference_bat <= 1)); then
+    echo "Stopping script not enough reading data (at least 1% change is needed)"
+    exit 1  # Exit the script with a non-zero status code
+fi
 
 # Calculate using awk
 calculated_value=$(awk -v blc="$bat_lastcharge" -v cb="$cur_battery" -v ts="$total_seconds" 'BEGIN {print (blc - cb) / (ts / 3600)}')
