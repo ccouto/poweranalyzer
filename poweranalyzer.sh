@@ -228,4 +228,4 @@ formatted_output=$(seconds_to_hms "estimated_fullempty_time")
 echo "Battery full-span:	$formatted_output"
 #echo
 #echo
-bash /home/ccouto/My_Bashes/getbat.sh
+
