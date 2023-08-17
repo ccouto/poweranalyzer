@@ -211,11 +211,13 @@ fi
 calculated_value=$(awk -v blc="$bat_lastcharge" -v cb="$cur_battery" -v ts="$total_seconds" 'BEGIN {print (blc - cb) / (ts / 3600)}')
 
 # get the current power usage:
+if [ -e "/sys/class/power_supply/BAT0/power_now" ]; then
     power_now=$(cat /sys/class/power_supply/BAT0/power_now)
     # Calculate power in milliWatts (mW) by dividing microWatts by 1000
     power_mw=$((power_now / 1000000))
     power_mw=$(awk "BEGIN {print $power_now / 1000000}")
     echo "Current power usage:		${power_mw} W"
+fi
 
 # Echo the calculated result
 echo "Average power usage:		$calculated_value W"
