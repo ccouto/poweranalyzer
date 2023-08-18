@@ -1,10 +1,26 @@
 #!/bin/bash
+LC_NUMERIC=C
 
-# test="1,9"
-# test_float=$(echo $test | tr , .)
-# echo $test_float
-# bat_lastcharge=$(awk "BEGIN {print $test_float / 1.1}")
-# echo $bat_lastcharge
+verbose=0
+#acc_line=1     #legacy code
+
+# Process the arguments
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -v)
+            verbose=1
+            ;;
+        # -acc)
+        #     #this option reads the second line instead of the first discharging line
+        #     acc_line=2
+        #     ;;
+        *)
+            echo "Unknown option: $1"
+            exit 1
+            ;;
+    esac
+    shift
+done
 
 # Get battery information using upower command
 output=$(upower -i /org/freedesktop/UPower/devices/battery_BAT0)
@@ -22,11 +38,16 @@ cur_state=$(echo "$output" | grep "state:" | awk '{print $2}' | tr , .)
 # Check if cur_state is "charging"
 if [ "$cur_state" = "charging" ]; then
     echo "Stopping script: Battery is charging"
-    #exit 1  # Exit the script with a non-zero status code
+    exit 1  # Exit the script with a non-zero status code
 fi
 
-#echo "Model is $model"
-#echo "Serial is $serial"
+if [ $verbose -eq 1 ]; then
+    echo "Battery info:"
+    echo "Model is $model"
+    echo "Serial is $serial"
+    echo "Battery full is $bat_full Wh"
+    echo
+fi
 
 # List files in the /var/lib/upower directory
 files=$(ls /var/lib/upower)
@@ -41,44 +62,25 @@ for file in $files; do
 	fi
 done
 
-#echo "the file is still $file"
-
 # Read the file into an array
 mapfile -t lines < "/var/lib/upower/$file"
 
-# Loop through the array in reverse
-# for (( i=${#lines[@]}-1; i>=0; i-- )); do
-#     line="${lines[$i]}"
-#     if [[ $line == *"	charging"* ]]; then
-#         if (( i < ${#lines[@]}-1 )); then
-#             last_charging_line="${lines[$i+1]}"
-#             echo "Line containing 'charging': $line"
-#             echo "Next line: $last_charging_line"
-#         else
-#             echo "Line containing 'charging': $line (last line)"
-#             last_charging_line=$line
-#         fi
-#         break
-#     fi
-# done
-
-# Read the file into an array
-# mapfile -t lines < "/var/lib/upower/$file"
-
-#
-#
-#   NOTE: we use the second line after the last *charging* to avoid problems
-#
-#
 # Loop through the array in reverse
 for ((i=${#lines[@]}-1; i>=0; i--)); do
     line="${lines[$i]}"
     if [[ $line == *"	charging"* ]]; then
         if ((i < ${#lines[@]}-2)); then  # Note the change in index
-            second_next_line="${lines[$i+1]}"  # Retrieve the second next line using $i+2
+            last_charging_line_zero="${lines[$i+1]}"  # Retrieve the first line after last charging (it should be discharging)
+            last_charging_line="${lines[$i+2]}"  # For the measurements we take the second discharing line, this is because on some systems the charging thresholds might make some differences
+            timestamp1=$(echo $last_charging_line_zero | awk '{print $1}')
+            timestamp2=$(echo $last_charging_line | awk '{print $1}')
+            #echo $last_charging_line
+            #calculate the interval between these two values in seconds
+            #timestamp1=${last_charging_line_zero%% *}
+            #timestamp2=${last_charging_line%% *}
+            seconds_to_add=$((timestamp2 - timestamp1))
             #echo "Line containing 'charging': $line"
             #echo "Second next line: $second_next_line"
-            last_charging_line=$second_next_line
         else
             #echo "Line containing 'charging': $line (second last line)"
             last_charging_line=$line  # No need to modify this line
@@ -87,33 +89,28 @@ for ((i=${#lines[@]}-1; i>=0; i--)); do
     fi
 done
 
-
-
-
-first_discharging_line=$(grep "unknown" "/var/lib/upower/$file" | tail -n 1)
-#echo "first is $first_discharging_line"
-#last_charging_line=$(grep "	charging" "/var/lib/upower/$file" | tail -n 1)
-#echo "$last_charging_line"
-    if [ -z "$last_charging_line" ]; then  
-    	first_discharging_line=$(grep "unknown" "/var/lib/upower/$file" | tail -n 2)
-        last_charging_line="$first_discharging_line"
-    fi
+#next is some legacy code, to be removed later
+# first_discharging_line=$(grep "unknown" "/var/lib/upower/$file" | tail -n 1)
+# #echo "first is $first_discharging_line"
+# #last_charging_line=$(grep "	charging" "/var/lib/upower/$file" | tail -n 1)
+# #echo "$last_charging_line"
+#     if [ -z "$last_charging_line" ]; then  
+#     	first_discharging_line=$(grep "unknown" "/var/lib/upower/$file" | tail -n 2)
+#         last_charging_line="$first_discharging_line"
+#     fi
 
 # Split last_charging_line by spaces and extract date and bat_lastcharge values
 read -r start_bat bat_lastcharge _ <<< "$last_charging_line | tr , ."
-
-# We compare the last charging date with the last boot
-#start_date=$(journalctl -b 0 | head -n 1 | awk '{print $1, $2, $3}')
-#start_date_unix=$(date -d "$start_date" +"%s")
-#if [[ "$start_date_unix" > "$start_bat" ]]; then
-#    start_bat_ignore="$start_date_unix"
-#fi
+read -r start_bat_4sus bat_lastcharge2 _ <<< "$last_charging_line_zero | tr , ."
 
 # Echo the extracted values
-#echo "Last Discharging Line: $last_discharging_line"
-#echo "Last Charging Line: $last_charging_line"
-#echo "Extracted Date: $start_bat"
-#echo "Extracted bat_lastcharge: $bat_lastcharge"
+if [ $verbose -eq 1 ]; then
+#    echo "Verbose mode is enabled."
+echo "Last Discharging Line: $last_discharging_line"
+echo "Last Charging Line: $last_charging_line"
+echo "Extracted Date: $start_bat"
+echo "Extracted bat_lastcharge: $bat_lastcharge"
+fi
 echo "Current battery:		$cur_battery Wh"
 echo "Percentage:			$cur_battery_percent"
 
@@ -142,36 +139,23 @@ seconds_to_hms() {
     echo "${hours} hours, ${minutes} minutes, ${seconds} seconds"
 }
 
-# Get the first line from "journalctl -b 0"
-journalctl_output=$(journalctl -o short-iso --since "@$start_bat" | head -n 1)
-journalctl_output_suspend=$(journalctl -o short-iso --since "@$start_bat" -t systemd-sleep |grep -E "systemd-sleep.*sleep state")
+# Get the first line from "journalctl" after the start of discharging state
+start_date=$(journalctl -o short-iso --since "@$start_bat" | head -n 1 | awk '{print $1}')
 
+#get the systemd status for sleeping states
+journalctl_output_suspend=$(journalctl -o short-iso --since "@$start_bat_4sus" -t systemd-sleep |grep -E "systemd-sleep.*sleep state")
+
+#current time in seconds
 current_seconds=$(date +%s)
-# Get the start date from "journalctl -b 0 | head -n 1"
-# original start_date:
-#start_date=$(journalctl --since "@$start_bat" | head -n 1 | awk '{print $1, $2, $3}')
-# we use this to avoid recalling journalct:
-start_date=$(echo $journalctl_output | head -n 1 | awk '{print $1}')
 
-# Convert start date to seconds
+#convert start_date to seconds
 start_seconds=$(date_to_seconds "$start_date")
-
-# Get the current date in seconds
-current_seconds=$(date +%s)
 
 # Calculate the difference in seconds
 total_seconds=$((current_seconds - start_seconds))
 
-# Read the remaining input from here document
-input_data=$(cat << EOF
-$journalctl_output_suspend
-EOF
-)
-
-#journalctl -b 0 |grep -E "systemd-sleep&sleep state"
-
 # Split the input into lines
-IFS=$'\n' read -r -d '' -a lines <<< "$input_data"
+IFS=$'\n' read -r -d '' -a lines <<< "$journalctl_output_suspend"
 difference=0
 # Calculate the difference in seconds for each line
 for ((i = 0; i < ${#lines[@]} - 1; i++)); do
@@ -179,9 +163,7 @@ for ((i = 0; i < ${#lines[@]} - 1; i++)); do
     next_line="${lines[$i + 1]}"
 
     # Extract the timestamps from the lines
-    #current_timestamp=$(echo "$current_line" | awk '{print $1, $2, $3}')
     current_timestamp=$(echo "$current_line" | awk '{print $1}')
-    #next_timestamp=$(echo "$next_line" | awk '{print $1, $2, $3}')
     next_timestamp=$(echo "$next_line" | awk '{print $1}')
 
     # Convert timestamps to seconds
@@ -196,21 +178,28 @@ for ((i = 0; i < ${#lines[@]} - 1; i++)); do
         # If it does, set the current timestamp to the next timestamp
         total_seconds=$((total_seconds-difference))
     fi
-
-    #echo "Time difference between Line $i and Line $((i + 1)): $difference seconds"
 done
 
-formatted_output=$(seconds_to_hms "$total_seconds")
-echo "Running on battery for:		$formatted_output"
-if ((difference_bat <= 1)); then
-    echo "Stopping script not enough reading data (at least 1% change is needed)"
-    exit 1  # Exit the script with a non-zero status code
-fi
-
 # Calculate using awk
-calculated_value=$(awk -v blc="$bat_lastcharge" -v cb="$cur_battery" -v ts="$total_seconds" 'BEGIN {print (blc - cb) / (ts / 3600)}')
+avr_power_usage=$(awk -v blc="$bat_lastcharge" -v cb="$cur_battery" -v ts="$total_seconds" 'BEGIN {print (blc - cb) / (ts / 3600)}')
 
-# get the current power usage:
+#final estimations
+estimated_empty_time=$(awk -v er="$avr_power_usage" -v cb="$cur_battery" 'BEGIN {print (cb/er) * 3600}')
+estimated_empty_time=$(printf "%.0f" $estimated_empty_time)
+
+#previously we were calculating the battery full span based on the full battery capacity and average power usage (calculate_full=1)
+#however, this has shown to be somehow inconsistent, we now present the full battery span as the simple calculation of running time + time to empty (calculate_full=0)
+calculate_full=0
+if [ $calculate_full -eq 1 ]; then
+    estimated_fullempty_time=$(awk -v er="$avr_power_usage" -v cb="$bat_full" 'BEGIN {print (cb/er) * 3600}')
+    estimated_fullempty_time=$(printf "%.0f" "$estimated_fullempty_time")
+else
+    estimated_fullempty_time=$((estimated_empty_time + total_seconds + seconds_to_add))
+fi
+# Show the result for running on bat
+echo "Running on battery for:		$(seconds_to_hms "$((total_seconds+seconds_to_add))")"
+
+# get the current power usage if the file exists
 if [ -e "/sys/class/power_supply/BAT0/power_now" ]; then
     power_now=$(cat /sys/class/power_supply/BAT0/power_now)
     # Calculate power in milliWatts (mW) by dividing microWatts by 1000
@@ -219,22 +208,16 @@ if [ -e "/sys/class/power_supply/BAT0/power_now" ]; then
     echo "Current power usage:		${power_mw} W"
 fi
 
-# Echo the calculated result
-echo "Average power usage:		$calculated_value W"
+# only show the results if there is enough data
+if ((difference_bat <= 1)); then
+    echo "Stopping script not enough reading data (at least 1% change is needed)"
+    exit 1  # Exit the script with a non-zero status code
+fi
+
+# Shows the results of calculations
+echo "Average power usage:		$avr_power_usage W"
 echo ""
+echo "Time to empty:		$(seconds_to_hms "estimated_empty_time")"
+echo "Battery full-span:	$(seconds_to_hms "estimated_fullempty_time")"
 
-#final estimations
-estimated_empty_time=$(awk -v er="$calculated_value" -v cb="$cur_battery" 'BEGIN {print (cb/er) * 3600}')
-#echo "time is $estimated_empty_time"
-#estimated_empty_time=$(printf "%.0f" "$estimated_empty_time")
-LC_NUMERIC=C estimated_empty_time=$(LC_NUMERIC=C printf "%.0f" $estimated_empty_time)
-formatted_output=$(seconds_to_hms "estimated_empty_time")
-echo "Time to empty:		$formatted_output"
-
-estimated_fullempty_time=$(awk -v er="$calculated_value" -v cb="$bat_full" 'BEGIN {print (cb/er) * 3600}')
-estimated_fullempty_time=$(printf "%.0f" "$estimated_fullempty_time")
-formatted_output=$(seconds_to_hms "estimated_fullempty_time")
-echo "Battery full-span:	$formatted_output"
-#echo
-#echo
 
