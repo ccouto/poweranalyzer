@@ -69,12 +69,12 @@ mapfile -t lines < "/var/lib/upower/$file"
 for ((i=${#lines[@]}-1; i>=0; i--)); do
     line="${lines[$i]}"
     if [[ $line == *"	charging"* ]]; then
-        if ((i < ${#lines[@]}-2)); then  # Note the change in index
-            last_charging_line_zero="${lines[$i+1]}"  # Retrieve the first line after last charging (it should be discharging)
-            last_charging_line="${lines[$i+2]}"  # For the measurements we take the second discharing line, this is because on some systems the charging thresholds might make some differences
+        if ((i < ${#lines[@]}-0)); then  # Note the change in index
+            last_charging_line_zero="${lines[$i+0]}"  # Retrieve the first line after last charging (it should be discharging)
+            last_charging_line="${lines[$i+1]}"  # For the measurements we take the second discharing line, this is because on some systems the charging thresholds might make some differences
             timestamp1=$(echo $last_charging_line_zero | awk '{print $1}')
             timestamp2=$(echo $last_charging_line | awk '{print $1}')
-            #echo $last_charging_line
+            #echo "last line is $last_charging_line_zero"
             #calculate the interval between these two values in seconds
             #timestamp1=${last_charging_line_zero%% *}
             #timestamp2=${last_charging_line%% *}
@@ -118,6 +118,7 @@ echo "Percentage:			$cur_battery_percent"
 #check if a least 1% of battery have been consumed, stop otherwise
 cur_battery_percent=${cur_battery_percent%"%"}  #we remove the % symbol
 bat_lastcharge=$(printf "%.0f" "$bat_lastcharge")
+bat_lastcharge_store=$bat_lastcharge
 difference_bat=$((bat_lastcharge - cur_battery_percent))
 #
 
@@ -209,8 +210,8 @@ if [ -e "/sys/class/power_supply/BAT0/power_now" ]; then
 fi
 
 # only show the results if there is enough data
-if ((difference_bat <= 1)); then
-    echo "Stopping script not enough reading data (at least 1% change is needed)"
+if ((difference_bat <= 2)); then
+    echo "Discharging started at $bat_lastcharge_store %, we are stopping script not enough reading data (at least 2% change is needed)"
     exit 1  # Exit the script with a non-zero status code
 fi
 
