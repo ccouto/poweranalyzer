@@ -70,11 +70,11 @@ for ((i=${#lines[@]}-1; i>=0; i--)); do
     line="${lines[$i]}"
     if [[ $line == *"	charging"* ]]; then
         if ((i < ${#lines[@]}-0)); then  # Note the change in index
-            last_charging_line_zero="${lines[$i+0]}"  # Retrieve the first line after last charging (it should be discharging)
-            last_charging_line="${lines[$i+1]}"  # For the measurements we take the second discharing line, this is because on some systems the charging thresholds might make some differences
+            last_charging_line_zero="${lines[$i+1]}"  # Retrieve the first line after last charging (it should be discharging)
+            last_charging_line="${lines[$i+2]}"  # For the measurements we take the second discharing line, this is because on some systems the charging thresholds might make some differences
             timestamp1=$(echo $last_charging_line_zero | awk '{print $1}')
             timestamp2=$(echo $last_charging_line | awk '{print $1}')
-            #echo "last line is $last_charging_line_zero"
+            #echo "last line zero is $last_charging_line_zero"
             #calculate the interval between these two values in seconds
             #timestamp1=${last_charging_line_zero%% *}
             #timestamp2=${last_charging_line%% *}
@@ -190,7 +190,7 @@ estimated_empty_time=$(printf "%.0f" $estimated_empty_time)
 
 #previously we were calculating the battery full span based on the full battery capacity and average power usage (calculate_full=1)
 #however, this has shown to be somehow inconsistent, we now present the full battery span as the simple calculation of running time + time to empty (calculate_full=0)
-calculate_full=0
+calculate_full=1
 if [ $calculate_full -eq 1 ]; then
     estimated_fullempty_time=$(awk -v er="$avr_power_usage" -v cb="$bat_full" 'BEGIN {print (cb/er) * 3600}')
     estimated_fullempty_time=$(printf "%.0f" "$estimated_fullempty_time")
