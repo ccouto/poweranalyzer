@@ -65,13 +65,23 @@ done
 # Read the file into an array
 mapfile -t lines < "/var/lib/upower/$file"
 
+last_charging_line=""
+bat_lastcharge=-1
+
 # Loop through the array in reverse
 for ((i=${#lines[@]}-1; i>=0; i--)); do
     line="${lines[$i]}"
-    if [[ $line == *"	charging"* ]]; then
+    if [[ $line == *"	charging"* || $line == *"	fully-charged"* ]]; then
+    #if [[ $line == *"	charging"* ]]; then
         if ((i < ${#lines[@]}-0)); then  # Note the change in index
             last_charging_line_zero="${lines[$i+1]}"  # Retrieve the first line after last charging (it should be discharging)
             last_charging_line="${lines[$i+2]}"  # For the measurements we take the second discharing line, this is because on some systems the charging thresholds might make some differences
+            #note: we are getting some strange readings when we get fully-charged state
+            #for that particular case we consider now the last_charging_line_zero to be that line
+            if [[ $line == *"	fully-charged"* ]]; then
+                last_charging_line_zero=$line
+                last_charging_line=$line
+            fi
             timestamp1=$(echo $last_charging_line_zero | awk '{print $1}')
             timestamp2=$(echo $last_charging_line | awk '{print $1}')
             #echo "last line zero is $last_charging_line_zero"
@@ -81,13 +91,38 @@ for ((i=${#lines[@]}-1; i>=0; i--)); do
             seconds_to_add=$((timestamp2 - timestamp1))
             #echo "Line containing 'charging': $line"
             #echo "Second next line: $second_next_line"
+            #echo "there: $last_charging_line" 
         else
             #echo "Line containing 'charging': $line (second last line)"
             last_charging_line=$line  # No need to modify this line
         fi
         break
     fi
+
+    if [[ $line == *"	discharging"* ]]; then
+
+        read -r start_bat bat_lastchargeread _ <<< "$line | tr , ."        
+        read -r start_bat bat_lastchargeread_before _ <<< "${lines[$i-1]} | tr , ."
+        bat_lastchargeread=$(printf "%.0f" "$bat_lastchargeread")
+        bat_lastchargeread_before=$(printf "%.0f" "$bat_lastchargeread_before")
+        if (($bat_lastchargeread_before < $bat_lastchargeread )); then
+            last_charging_line_zero=$line
+            last_charging_line=$line            
+            seconds_to_add=0
+            #we got the line
+            #sometimes if the charging occurs during suspend time only, the $file will not contain this information
+            #however, we can still check if this occurred by looking at the bat carge values, if it has increased, it means that there was some charging that went unlogged
+            break
+        fi
+    fi
+
 done
+
+# Check if last_charging_line is empty if so, we need to exit otherwise results are wrong
+if [[ -z "$last_charging_line" ]]; then
+    echo "We are stopping this script because there is not enough information about discharging state. Please wait until the battery is slightly discharged."
+    exit 1
+fi
 
 #next is some legacy code, to be removed later
 # first_discharging_line=$(grep "unknown" "/var/lib/upower/$file" | tail -n 1)
@@ -210,8 +245,9 @@ if [ -e "/sys/class/power_supply/BAT0/power_now" ]; then
 fi
 
 # only show the results if there is enough data
-if ((difference_bat <= 2)); then
-    echo "Discharging started at $bat_lastcharge_store %, we are stopping script not enough reading data (at least 2% change is needed)"
+if ((difference_bat <= 1)); then
+    #echo $difference_bat
+    echo "Discharging started at $bat_lastcharge_store %, we are stopping script not enough reading data (at least 1% change is needed)"
     exit 1  # Exit the script with a non-zero status code
 fi
 
