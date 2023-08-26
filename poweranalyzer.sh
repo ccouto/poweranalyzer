@@ -67,6 +67,22 @@ while [ $# -gt 0 ]; do
     shift
 done
 
+#functions:
+
+# Function to convert date to seconds since epoch (Unix timestamp)
+date_to_seconds() {
+    date -d "$1" +%s
+}
+
+# Function to convert seconds to hours, minutes, and seconds format
+seconds_to_hms() {
+    local seconds=$1
+    local hours=$((seconds / 3600))
+    local minutes=$(( (seconds % 3600) / 60 ))
+    local seconds=$(( seconds % 60 ))
+    echo "${hours} hours, ${minutes} minutes, ${seconds} seconds"
+}
+
 # Get battery information using upower command
 output=$(upower -i /org/freedesktop/UPower/devices/battery_BAT0)
 
@@ -175,7 +191,7 @@ done
 
 # Check if first_discharging_line is empty if so, we need to exit otherwise results are wrong
 if [[ -z "$first_discharging_line" ]]; then
-    echo "We are stopping this script because there is not enough information about discharging state. Please wait until the battery is slightly discharged."
+    echo "Leaving because there is not enough information about discharging state. Please wait until the battery is slightly discharged."
     exit 1
 fi
 
@@ -193,44 +209,6 @@ fi
 read -r start_bat bat_lastcharge _ <<< "$first_discharging_line | tr , ."
 read -r start_bat_4sus bat_lastcharge2 _ <<< "$first_discharging_line_zero | tr , ."
 
-# Echo the extracted values
-if [ $verbose -eq 1 ]; then
-#    echo "Verbose mode is enabled."
-echo "Current cycle:"
-echo "First Discharging Line: $first_discharging_line"
-echo "Last Discharging Line: $last_discharging_line"
-echo "Extracted Date: $start_bat"
-echo "Extracted bat_lastcharge: $bat_lastcharge"
-fi
-echo "Current battery:		$cur_battery Wh"
-echo "Percentage:			$cur_battery_percent"
-
-
-#check if a least 1% of battery have been consumed, stop otherwise
-cur_battery_percent=${cur_battery_percent%"%"}  #we remove the % symbol
-bat_lastcharge=$(printf "%.0f" "$bat_lastcharge")
-bat_lastcharge_store=$bat_lastcharge
-difference_bat=$((bat_lastcharge - cur_battery_percent))
-#
-
-
-bat_lastcharge=$(awk "BEGIN {print $bat_lastcharge * $bat_full / 100}")
-#echo "Calculated last charge:		$bat_lastcharge	Wh"
-
-# Function to convert date to seconds since epoch (Unix timestamp)
-date_to_seconds() {
-    date -d "$1" +%s
-}
-
-# Function to convert seconds to hours, minutes, and seconds format
-seconds_to_hms() {
-    local seconds=$1
-    local hours=$((seconds / 3600))
-    local minutes=$(( (seconds % 3600) / 60 ))
-    local seconds=$(( seconds % 60 ))
-    echo "${hours} hours, ${minutes} minutes, ${seconds} seconds"
-}
-
 if [ $use_laptop_mode -eq 1 ]; then
     read -r start_date bat_lastcharge2 _ <<< "$(journalctl -o short-iso -b 0 -t laptop_mode | grep 'enabled, active$' | tail -1)"
     #echo "new $start_bat_4sus"
@@ -244,11 +222,54 @@ start_date_lastboot=$(journalctl -o short-iso -b 0 | head -n 1 | awk '{print $1}
 # Convert dates to Unix timestamps for comparison
 timestamp_lastboot=$(date -d "$start_date_lastboot" +%s)
 timestamp_start_date=$(date -d "$start_date" +%s)
-charge_cycle_event="charge" #default is last charge
-if [ "$timestamp_lastboot" -gt "$timestamp_start_date" ]; then
-    charge_cycle_event="boot"
+echo "timestamp_lastboot: $timestamp_lastboot"
+echo "timestamp_start_date: $timestamp_start_date"
+charge_cycle_event="boot" #default is last charge
+if [ "$timestamp_lastboot" -lt "$timestamp_start_date" ]; then
+    charge_cycle_event="charge"
+else
+    
+    #if we are here it means that the first discharging line in upower is older than the last boot
+    #thus, we need a second pass on the upower file to get more recent values (since boot)
+    #we need to set bat_lastcharge, start_date and start_bat_4sus
+    #the nice thing is that we need only to compare the timestamps on the *discharging* lines, otherwise we wouldn't be here
+
+    # Loop through the array in reverse
+    for ((i=${#lines[@]}-1; i>=0; i--)); do
+        line="${lines[$i]}"
+        read -r compare_date bat_comparedate _ <<< "$line | tr , ."
+        if [ "$timestamp_lastboot" -lt "$compare_date" ]; then
+            read -r compare_date bat_comparedate _ <<< "${lines[$i-1]} | tr , ."
+            bat_lastcharge=$bat_comparedate
+            start_bat=$compare_date
+            start_bat_4sus=$compare_date
+        fi        
+    done
+
 fi
 
+# Echo the extracted values
+if [ $verbose -eq 1 ]; then
+#    echo "Verbose mode is enabled."
+echo "Current cycle:"
+echo "First Discharging Line: $first_discharging_line"
+echo "Last Discharging Line: $last_discharging_line"
+echo "Extracted Date: $start_bat (since last $charge_cycle_event)"
+echo "Extracted bat_lastcharge: $bat_lastcharge (since last $charge_cycle_event)"
+fi
+echo "Current battery:		$cur_battery Wh"
+echo "Percentage:			$cur_battery_percent"
+
+
+#check if a least 1% of battery have been consumed, stop otherwise
+cur_battery_percent=${cur_battery_percent%"%"}  #we remove the % symbol
+bat_lastcharge=$(printf "%.0f" "$bat_lastcharge")
+bat_lastcharge_store=$bat_lastcharge
+difference_bat=$((bat_lastcharge - cur_battery_percent))
+#
+
+bat_lastcharge=$(awk "BEGIN {print $bat_lastcharge * $bat_full / 100}")
+#echo "Calculated last charge:		$bat_lastcharge	Wh"
 
 
 #get the systemd status for sleeping states
@@ -321,7 +342,7 @@ fi
 # only show the results if there is enough data
 if ((difference_bat <= 1)); then
     #echo $difference_bat
-    echo "Discharging started at $bat_lastcharge_store %, we are stopping script not enough reading data (at least 1% change is needed)"
+    echo "Discharging started at $bat_lastcharge_store %. At least 1% discharge is needed, leaving..."
     exit 1  # Exit the script with a non-zero status code
 fi
 
