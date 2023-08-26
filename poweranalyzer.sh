@@ -239,6 +239,16 @@ else
 start_date=$(journalctl -o short-iso --since "@$start_bat" -b 0 | head -n 1 | awk '{print $1}')
 fi
 
+#the next text block determines if we are running from battery since last boot or since last charge
+start_date_lastboot=$(journalctl -o short-iso -b 0 | head -n 1 | awk '{print $1}')
+# Convert dates to Unix timestamps for comparison
+timestamp_lastboot=$(date -d "$start_date_lastboot" +%s)
+timestamp_start_date=$(date -d "$start_date" +%s)
+charge_cycle_event="charge" #default is last charge
+if [ "$timestamp_lastboot" -gt "$timestamp_start_date" ]; then
+    charge_cycle_event="boot"
+fi
+
 
 
 #get the systemd status for sleeping states
@@ -295,8 +305,9 @@ estimated_empty_time=$(printf "%.0f" $estimated_empty_time)
 #else
     estimated_cycleempty_time=$((estimated_empty_time + total_seconds + seconds_to_add))
 #fi
+
 # Show the result for running on bat
-echo "Running on battery for:		$(seconds_to_hms "$((total_seconds+seconds_to_add))") (since last boot)"
+echo "Running on battery for:		$(seconds_to_hms "$((total_seconds+seconds_to_add))") (since last $charge_cycle_event)"
 
 # get the current power usage if the file exists
 if [ -e "/sys/class/power_supply/BAT0/power_now" ]; then
