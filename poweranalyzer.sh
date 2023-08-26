@@ -222,8 +222,8 @@ start_date_lastboot=$(journalctl -o short-iso -b 0 | head -n 1 | awk '{print $1}
 # Convert dates to Unix timestamps for comparison
 timestamp_lastboot=$(date -d "$start_date_lastboot" +%s)
 timestamp_start_date=$(date -d "$start_date" +%s)
-echo "timestamp_lastboot: $timestamp_lastboot"
-echo "timestamp_start_date: $timestamp_start_date"
+#echo "timestamp_lastboot: $timestamp_lastboot"
+#echo "timestamp_start_date: $timestamp_start_date"
 charge_cycle_event="boot" #default is last charge
 if [ "$timestamp_lastboot" -lt "$timestamp_start_date" ]; then
     charge_cycle_event="charge"
