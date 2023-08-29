@@ -4,19 +4,8 @@ version="0.0.1"
 LC_NUMERIC=C
 
 verbose=0
-
 #acc_line=1     #legacy code
-
-#in some systems there is a greater accuracy if we use laptop_mode to detect when charging has stopped
-#however, laptop_mode is not available in all systems, thus we make this test first
-detect_laptop_mode=$(journalctl -b 0 -t laptop_mode | tail -1 | grep laptop_mode)
-if [[ -z $detect_laptop_mode ]]; then
-    #echo "No laptop mode!"
-    use_laptop_mode=0
-else
-    #echo "We have laptop mode"
-    use_laptop_mode=1
-fi
+use_laptop_mode=0 #default is no laptopmode unless requested
 
 # Process the arguments
 while [ $# -gt 0 ]; do
@@ -49,8 +38,17 @@ while [ $# -gt 0 ]; do
         ;;
         #next option is to use laptop mode, currently not implemented
         -l)
-            echo "disable using laptop mode"
-            use_laptop_mode=0
+            #in some cases there is a greater accuracy if we use laptop_mode to detect when charging has stopped
+            #however, laptop_mode is not available in all systems, thus we make this test first
+            #detect_laptop_mode=$(journalctl -b 0 -t laptop_mode | tail -1 | grep laptop_mode)      #using journalctl
+            detect_laptop_mode=$(command -v laptop_mode)                                            #simply detect vida command
+            if [[ -z $detect_laptop_mode ]]; then
+                #echo "No laptop mode!"
+                use_laptop_mode=0
+            else
+                #echo "We have laptop mode"
+                use_laptop_mode=1
+            fi
             ;;
         -v)
             verbose=1
@@ -212,6 +210,10 @@ read -r start_bat_4sus bat_lastcharge2 _ <<< "$first_discharging_line_zero | tr 
 if [ $use_laptop_mode -eq 1 ]; then
     read -r start_date bat_lastcharge2 _ <<< "$(journalctl -o short-iso -b 0 -t laptop_mode | grep 'enabled, active$' | tail -1)"
     #echo "new $start_bat_4sus"
+    if [[ -z $start_date ]]; then
+        #if we are here, there was no laptop_mode in the journalctl output, we read the date as if laptop_mode was not enabled (see next condition)
+        start_date=$(journalctl -o short-iso --since "@$start_bat" -b 0 | head -n 1 | awk '{print $1}')
+    fi
 else
     # Get the first line from "journalctl" after the start of discharging state
 start_date=$(journalctl -o short-iso --since "@$start_bat" -b 0 | head -n 1 | awk '{print $1}')
@@ -239,10 +241,17 @@ else
         line="${lines[$i]}"
         read -r compare_date bat_comparedate _ <<< "$line | tr , ."
         if [ "$timestamp_lastboot" -lt "$compare_date" ]; then
+            
+            # we update all the info
+            
             read -r compare_date bat_comparedate _ <<< "${lines[$i-1]} | tr , ."
+            first_discharging_line_zero=${lines[$i-1]}
+            first_discharging_line=${lines[$i-1]}                  
             bat_lastcharge=$bat_comparedate
             start_bat=$compare_date
             start_bat_4sus=$compare_date
+            seconds_to_add=0
+            start_date=$(journalctl -o short-iso --since "@$start_bat" -b 0 | head -n 1 | awk '{print $1}')
         fi        
     done
 
@@ -350,7 +359,9 @@ fi
 echo "Average power usage:		$avr_power_usage W"
 echo ""
 echo "Time to empty:			$(seconds_to_hms "estimated_empty_time")"
+if [ $verbose -eq 1 ]; then
 echo "Battery cycle duration:		$(seconds_to_hms "estimated_cycleempty_time")"
+fi
 echo "Battery full-span:		$(seconds_to_hms "estimated_fullempty_time")"
 
 
