@@ -130,59 +130,74 @@ bat_lastcharge=-1
 # Loop through the array in reverse
 for ((i=${#lines[@]}-1; i>=0; i--)); do
     line="${lines[$i]}"
-    if [[ $line == *"	charging"* || $line == *"	fully-charged"* ]]; then
-    #if [[ $line == *"	charging"* ]]; then
-        if ((i < ${#lines[@]}-0)); then  # Note the change in index
-            first_discharging_line_zero="${lines[$i+1]}"  # Retrieve the first line after last charging (it should be discharging)
-            first_discharging_line="${lines[$i+1]}"  # For the measurements we take the second discharing line, this is because on some systems the charging thresholds might make some differences
-            #note: we are getting some strange readings when we get fully-charged state
-            #for that particular case we consider now the first_discharging_line_zero to be that line
-            if [[ $line == *"	fully-charged"* ]]; then
-                first_discharging_line_zero=$line
-                first_discharging_line=$line
-            fi
-            timestamp1=$(echo $first_discharging_line_zero | awk '{print $1}')
-            timestamp2=$(echo $first_discharging_line | awk '{print $1}')
-            #echo "last line zero is $first_discharging_line_zero"
-            #calculate the interval between these two values in seconds
-            #timestamp1=${first_discharging_line_zero%% *}
-            #timestamp2=${first_discharging_line%% *}
-            seconds_to_add=$((timestamp2 - timestamp1))
-            #echo "Seconds to add: $seconds_to_add"
-            #echo "Line containing 'charging': $line"
-            #echo "Second next line: $second_next_line"
-            #echo "there: $first_discharging_line" 
-        else
-            #echo "Line containing 'charging': $line (second last line)"
-            first_discharging_line=$line  # No need to modify this line
-        fi
-        break
-    fi
+    # if [[ $line == *"	charging"* || $line == *"	fully-charged"* ]]; then
+    # #if [[ $line == *"	charging"* ]]; then
+    #     if ((i < ${#lines[@]}-0)); then  # Note the change in index
+    #         first_discharging_line_zero="${lines[$i+1]}"  # Retrieve the first line after last charging (it should be discharging)
+    #         first_discharging_line="${lines[$i+1]}"  # For the measurements we take the second discharing line, this is because on some systems the charging thresholds might make some differences
+    #         #note: we are getting some strange readings when we get fully-charged state
+    #         #for that particular case we consider now the first_discharging_line_zero to be that line
+    #         if [[ $line == *"	fully-charged"* ]]; then
+    #             first_discharging_line_zero=$line
+    #             first_discharging_line=$line
+    #             echo "yes!"
+    #         fi
+    #         if [[ $first_discharging_line == *"unknown"* ]]; then
+    #             first_discharging_line_zero="${lines[$i-2]}"  # Retrieve the first line after last charging (it should be discharging)
+    #             first_discharging_line="${lines[$i-2]}"  # For the measurements we take the second discharing line, this is because on some systems the charging thresholds might make some differences
+    #             echo "nopes!"
+    #         fi
+    #         timestamp1=$(echo $first_discharging_line_zero | awk '{print $1}')
+    #         timestamp2=$(echo $first_discharging_line | awk '{print $1}')
+    #         #echo "last line zero is $first_discharging_line_zero"
+    #         #calculate the interval between these two values in seconds
+    #         #timestamp1=${first_discharging_line_zero%% *}
+    #         #timestamp2=${first_discharging_line%% *}
+    #         seconds_to_add=$((timestamp2 - timestamp1))
+    #         echo "we were here"
+    #         #echo "Seconds to add: $seconds_to_add"
+    #         #echo "Line containing 'charging': $line"
+    #         #echo "Second next line: $second_next_line"
+    #         #echo "there: $first_discharging_line" 
+    #     else
+    #         #echo "Line containing 'charging': $line (second last line)"
+    #         first_discharging_line=$line  # No need to modify this line
+    #     fi
+    #     break
+    # fi
 
-    if [[ $line == *"	discharging"* ]]; then
+    if [[ $line == *"	discharging"* ]] || [[ $line == *"unknown"* ]]; then
 
         read -r start_bat bat_lastchargeread _ <<< "$line | tr , ."    
         read -r start_bat bat_lastchargeread_before thestatus _ <<< "${lines[$i-1]} | tr , ."
         
-        if [[ $thestatus == *"unknown"* ]]; then
-            if [ $verbose -eq 1 ]; then
-                echo "we have ignored this line ${lines[$i-1]} because status is $thestatus" 
-            fi
+        # if [[ $thestatus == *"unknown"* ]]; then
+        #     if [ $verbose -eq 1 ]; then
+        #         echo "we have ignored this line ${lines[$i-1]} because status is $thestatus" 
+        #     fi
 
-            read -r start_bat bat_lastchargeread_before _ <<< "${lines[$i-2]} | tr , ."
-        fi
+        #     read -r start_bat bat_lastchargeread_before _ <<< "${lines[$i-2]} | tr , ."
+        # fi
 
         bat_lastchargeread=$(printf "%.0f" "$bat_lastchargeread")
-        bat_lastchargeread_before=$(printf "%.0f" "$bat_lastchargeread_before")
-        if (($bat_lastchargeread_before < $bat_lastchargeread )); then
-            first_discharging_line_zero=$line
-            first_discharging_line=$line            
-            seconds_to_add=0
+        #bat_lastchargeread_before=$(printf "%.0f" "$bat_lastchargeread_before")
+        #if (($bat_lastchargeread_before < $bat_lastchargeread )); then
+        first_discharging_line_zero=$line
+        first_discharging_line=$line            
+        seconds_to_add=0
             #we got the line
             #sometimes if the charging occurs during suspend time only, the $file will not contain this information
             #however, we can still check if this occurred by looking at the bat carge values, if it has increased, it means that there was some charging that went unlogged
-            break
+            #break
+        #fi
+#    elif [[ $thestatus == *"unknown"* ]]; then
+        #do nothing
+    else
+        if [ $verbose -eq 1 ]; then
+            echo "we stop at line $line"
         fi
+
+        break
     fi
 
 done
@@ -235,7 +250,7 @@ else
     #thus, we need a second pass on the upower file to get more recent values (since boot)
     #we need to set bat_lastcharge, start_date and start_bat_4sus
     #the nice thing is that we need only to compare the timestamps on the *discharging* lines, otherwise we wouldn't be here
-
+    first_discharging_line=""
     # Loop through the array in reverse
     for ((i=${#lines[@]}-1; i>=0; i--)); do
         line="${lines[$i]}"
@@ -251,10 +266,16 @@ else
             start_bat=$compare_date
             start_bat_4sus=$compare_date
             seconds_to_add=0
-            start_date=$(journalctl -o short-iso --since "@$start_bat" -b 0 | head -n 1 | awk '{print $1}')
+            start_date=$start_date_lastboot #$(journalctl -o short-iso --since "@$start_bat" -b 0 | head -n 1 | awk '{print $1}')
         fi        
     done
 
+    # Check again if first_discharging_line is empty if so, we need to exit otherwise results are wrong
+    # this happens because the logging in upower file is not "immediate"
+    if [[ -z "$first_discharging_line" ]]; then
+        echo "Leaving because there is not enough information about discharging state. Please wait until the battery is slightly discharged."
+        exit 1
+    fi
 fi
 
 # Echo the extracted values
