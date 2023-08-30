@@ -367,6 +367,10 @@ if [ -e "/sys/class/power_supply/BAT0/power_now" ]; then
     power_mw=$((power_now / 1000000))
     power_mw=$(awk "BEGIN {print $power_now / 1000000}")
     echo "Current power usage:		${power_mw} W"
+else
+    #it was not read, try from the upower file
+    read -r _ power_mw __ ___ <<< $(upower -i /org/freedesktop/UPower/devices/battery_BAT0 | grep energy-rate)
+    echo "Current power usage:		${power_mw} W (upower)"
 fi
 
 # only show the results if there is enough data
