@@ -167,10 +167,12 @@ for ((i=${#lines[@]}-1; i>=0; i--)); do
     # fi
 
     if [[ $line == *"	discharging"* ]] || [[ $line == *"unknown"* ]]; then
+    #if [[ $line == *"	discharging"* ]]; then
 
         read -r start_bat bat_lastchargeread _ <<< "$line | tr , ."    
         read -r start_bat bat_lastchargeread_before thestatus _ <<< "${lines[$i-1]} | tr , ."
-        
+        #echo "Comparing $bat_lastchargeread with $bat_lastchargeread"
+        #echo "Alternative compare $bat_lastchargeread with $bat_lastchargeread_before"
         # if [[ $thestatus == *"unknown"* ]]; then
         #     if [ $verbose -eq 1 ]; then
         #         echo "we have ignored this line ${lines[$i-1]} because status is $thestatus" 
@@ -190,8 +192,9 @@ for ((i=${#lines[@]}-1; i>=0; i--)); do
             #however, we can still check if this occurred by looking at the bat carge values, if it has increased, it means that there was some charging that went unlogged
             #break
         #fi
-#    elif [[ $thestatus == *"unknown"* ]]; then
+    #elif [[ $thestatus == *"unknown"* ]]; then
         #do nothing
+        #m=1
     else
         if [ $verbose -eq 1 ]; then
             echo "we stop at line $line"
