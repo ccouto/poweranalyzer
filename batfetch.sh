@@ -7,6 +7,7 @@ verbose=0
 #acc_line=1     #legacy code
 use_laptop_mode=0 #default is no laptopmode unless requested
 cycle=0
+debug=0
 
 # Process the arguments
 while [ $# -gt 0 ]; do
@@ -40,7 +41,10 @@ while [ $# -gt 0 ]; do
             exit 1
 
             ;;
-        --cycle)
+        --debug | -d)
+            debug=1
+            ;;
+        --cycle | -c)
             shift  # Move to the next argument after --cycle
             if [ $# -gt 0 ]; then
                 cycle="$1"
@@ -50,10 +54,10 @@ while [ $# -gt 0 ]; do
                 exit 1
             fi
             ;;
-        --getcycles)
+        --getcycles | -gc)
             cycle=-1
             ;;
-        -v)
+        --verbose | -v)
             verbose=1       #gives some more info
             ;;
         *)
@@ -136,8 +140,12 @@ for ((i=${#lines[@]}-1; i>=0; i--)); do
             shift=2
             #echo "shift it!"
         fi
+        
+        #some debug lines
+        if [[ $debug == 1 ]]; then
         echo "we are at line $i which is : $line"
         echo "we are interested in line ${lines[$i+$shift]}"
+        fi
 
         if [[ $cur_cycle == $cycle ]]; then
             read -r start_bat bat_lastchargeread _ <<< "${lines[$i+$shift]}"  
