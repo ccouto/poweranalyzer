@@ -166,6 +166,8 @@ for ((i=${#lines[@]}; i>=0; i--)); do
                 #we should only do this if we are discharging
                 if [[ $cur_state == "discharging" ]]; then
                     charge_status_end_num=$cur_battery_percent
+                    charge_status_end=${cur_battery_percent%\%}
+                    
                     end_bat=$(date +%s)
                     echo "until now (current cycle) with $charge_status_end_num"
                 else
