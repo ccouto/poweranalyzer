@@ -6,19 +6,19 @@ LC_NUMERIC=C
 verbose=0
 #acc_line=1     #legacy code
 use_laptop_mode=0 #default is no laptopmode unless requested
-period=0
+cycle=0
 
 # Process the arguments
 while [ $# -gt 0 ]; do
     case "$1" in
         --version)
-            echo "poweranalyzer $version"
+            echo "batfetch $version"
             exit 1
             ;;
         --help)
             echo "batfetch $version"
             echo "A bash script for better battery estimation using systemd and acpi calls"
-            echo "ccouto <ccouto@ua.pt>"
+            echo "see <github.com/ccouto>"
             echo ""
             echo "Available options are:"
             echo "--getcycles   gives the number of cycles currently available on the acpi log"
@@ -28,21 +28,22 @@ while [ $# -gt 0 ]; do
             echo ""
             #echo "Current battery			current battery available (in W*h)"
             #echo "Percentage			percentage of battery available"
-            echo "Running on battery for		time running on battery (minus suspend and shutdown time)"  
-            echo "Current power usage		power usage from ACPI (it might not be available in your system)"
-            echo "Average power usage		average power consumption (calculated based on running on battery)"
-            echo "Time to empty			available time running on battery"
-            echo "Battery full-span		based on average, the full battery timespan"
+            echo "Running on battery for        time running on battery (minus suspend and shutdown time)"  
+            echo "Battery consumed              the % of battery consumed in the analysed cycle"
+            echo "Average power usage           average power consumption (calculated based on running on battery)"
+            echo "Current power usage           power usage from ACPI (it might not be available in your system)"
+            echo "Time to empty                 available time running on battery"
+            echo "Battery cycle duration        the full cycle duration since started running on battery until battery is empty"
+            echo "Battery full-span             based on average, the full battery timespan"
             echo ""
             echo "Note: this script is still experimental, if you get strange readings, let the battery discharge slightly more and try again."
             exit 1
-            #echo "version $version"
-            #echo "Carlos Couto"
+
             ;;
         --cycle)
             shift  # Move to the next argument after --cycle
             if [ $# -gt 0 ]; then
-                period="$1"
+                cycle="$1"
                 echo "We are reading the cycle #$1"
             else
                 echo "Error: --cycle option requires a value."
@@ -50,15 +51,11 @@ while [ $# -gt 0 ]; do
             fi
             ;;
         --getcycles)
-            period=-1
+            cycle=-1
             ;;
         -v)
-            verbose=1
+            verbose=1       #gives some more info
             ;;
-        # -acc)
-        #     #this option reads the second line instead of the first discharging line
-        #     acc_line=2
-        #     ;;
         *)
             echo "Unknown option: $1"
             exit 1
@@ -96,12 +93,6 @@ cur_battery=$(echo "$output" | grep "energy:" | awk '{print $2}' | tr , .)
 cur_battery_percent=$(echo "$output" | grep "percentage:" | awk '{print $2}' | tr , .)
 cur_state=$(echo "$output" | grep "state:" | awk '{print $2}' | tr , .)
 
-# Check if cur_state is "charging"
-#if [ "$cur_state" != "discharging" ]; then
-#    echo "Stopping script: Battery is not discharging."
-#    exit 1  # Exit the script with a non-zero status code
-#fi
-
 if [ $verbose -eq 1 ]; then
     echo "Battery info:"
     echo "Model is $model"
@@ -126,12 +117,11 @@ done
 # Read the file into an array
 mapfile -t lines < "/var/lib/upower/$file"
 
-first_discharging_line=""
+#read lines for discharing
 last_discharging_line=""
-bat_lastcharge=-1
 
-cur_period=0
-
+#cur_cycle stores the current charge-discharge cycle (it is also used to count the # of cycles in acpi log)
+cur_cycle=0
 
 # Loop through the array in reverse
 for ((i=${#lines[@]}-1; i>=0; i--)); do
@@ -149,14 +139,22 @@ for ((i=${#lines[@]}-1; i>=0; i--)); do
         #echo "we are at line $i which is : $line"
         #echo "we are interested in line ${lines[$i+$shift]}"
 
-        if [[ $cur_period == $period ]]; then
+        if [[ $cur_cycle == $cycle ]]; then
             read -r start_bat bat_lastchargeread _ <<< "${lines[$i+$shift]} | tr , ."  
             read -r end_bat charge_status_end _ <<< "$last_discharging_line | tr , ."    
             bat_lastchargeread_num=$(awk "BEGIN {print $bat_lastchargeread}")
             charge_status_end_num=$(awk "BEGIN {print $charge_status_end}")
 
-            echo "Bat started at $bat_lastchargeread_num% on $(date -d "@$start_bat" +"%d/%m/%y at %T")"
-            echo "Bat ended at $charge_status_end_num% on $(date -d "@$end_bat" +"%d/%m/%y at %T")"
+            echo "Running on battery since $(date -d "@$start_bat" +"%d/%m/%y at %T") with $bat_lastchargeread_num%"
+            
+            #we are checking if the cycle is the current one, if it is (cycle=0) make some updates to read values and present info
+            if [[ $cycle -gt 0 ]]; then
+            echo "until $(date -d "@$end_bat" +"%d/%m/%y at %T") with $charge_status_end_num%"
+            else
+            charge_status_end_num=$cur_battery_percent
+            echo "until now (current cycle) with $charge_status_end_num"
+            fi
+            
             seconds_elapsed=$((end_bat - start_bat))
             if [[ $seconds_elapsed == 0 ]]; then
                 echo "Please wait for battery to discharge a bit more (remember that there is a delay until it reaches the acpi log...)"
@@ -184,8 +182,6 @@ for ((i=${#lines[@]}-1; i>=0; i--)); do
                     seconds_elapsed=$((seconds_elapsed - sleep_seconds_elapsed))
                     sleep_total=$((sleep_total+$sleep_seconds_elapsed))
                     
-                    #echo "Allright sleeped for $(seconds_to_hms "$((sleep_seconds_elapsed))")"
-                    #echo "Sleep info $sleep_start until $sleep_end"
                 fi
                 if [[ ${lines_jctl[$j]} == *"-- Boot"* ]]; then
                     sleep_start=$(echo "${lines_jctl[$j-1]}" | awk '{print $1}')
@@ -199,63 +195,45 @@ for ((i=${#lines[@]}-1; i>=0; i--)); do
                     seconds_elapsed=$((seconds_elapsed - sleep_seconds_elapsed))
                     shutdown_total=$((shutdown_total+$sleep_seconds_elapsed))
                     
-                    #echo "Allright on the dark for $(seconds_to_hms "$((sleep_seconds_elapsed))")"
-                    #echo "Sleep info $sleep_start until $sleep_end"
                 fi
 
-                cur_period=0
+                cur_cycle=0
                 #echo $"${lines_jctl[$j]}"
             done
 
-
-
-
-            #last_discharging_line=$line
             break
         else
-            cur_period=$((cur_period + 1))
+            cur_cycle=$((cur_cycle + 1))
             last_discharging_line=""
         fi
     fi
 done
 
-if [[ $cur_period > 0 ]]; then
-    echo "Available cycles are $((cur_period-2))"
+if [[ $cur_cycle > 0 ]]; then
+    echo "Available cycles are $((cur_cycle-2))"
     exit 1
 fi
 
 if [[ $sleep_total > 0 ]]; then
-    echo "During this period the computer was sleeping for $(seconds_to_hms "$((sleep_total))")"
+    echo "during this cycle the computer was sleeping for $(seconds_to_hms "$((sleep_total))")"
 fi
 if [[ $shutdown_total > 0 ]]; then
-    echo "During this period the computer was shutdown for $(seconds_to_hms "$((shutdown_total))")"
+    echo "during this cycle the computer was shutdown for $(seconds_to_hms "$((shutdown_total))")"
 fi
 
 bat_consumed=$(awk "BEGIN {print $bat_lastchargeread - $charge_status_end}")
-#bat_consumed=$((bat_lastchargeread-charge_status_end))
-
-
-
 bat_lastcharge=$(awk "BEGIN {print $bat_lastchargeread * $bat_full / 100}")
 charge_status_end=$(awk "BEGIN {print $charge_status_end * $bat_full / 100}")
-#echo "Calculated last charge:		$bat_lastcharge	Wh"
 
 # Calculate using awk
 avr_power_usage=$(awk -v blc="$bat_lastcharge" -v cb="$charge_status_end" -v ts="$seconds_elapsed" 'BEGIN {print (blc - cb) / (ts / 3600)}')
-#echo "Average power usage was:		$avr_power_usage W"
-#final estimations
+
+#final estimations for cycle, empty and full bat span:
 estimated_empty_time=$(awk -v er="$avr_power_usage" -v cb="$cur_battery" 'BEGIN {print (cb/er) * 3600}')
 estimated_empty_time=$(printf "%.0f" $estimated_empty_time)
-
-#previously we were calculating the battery full span based on the full battery capacity and average power usage (calculate_full=1)
-#however, this has shown to be somehow inconsistent, we now present the full battery span as the simple calculation of running time + time to empty (calculate_full=0)
-#calculate_full=1
-#if [ $calculate_full -eq 1 ]; then
-    estimated_fullempty_time=$(awk -v er="$avr_power_usage" -v cb="$bat_full" 'BEGIN {print (cb/er) * 3600}')
-    estimated_fullempty_time=$(printf "%.0f" "$estimated_fullempty_time")
-#else
-    estimated_cycleempty_time=$((estimated_empty_time + seconds_elapsed))
-#fi
+estimated_fullempty_time=$(awk -v er="$avr_power_usage" -v cb="$bat_full" 'BEGIN {print (cb/er) * 3600}')
+estimated_fullempty_time=$(printf "%.0f" "$estimated_fullempty_time")
+estimated_cycleempty_time=$((estimated_empty_time + seconds_elapsed))
 
 # Show the result for running on bat
 #echo "Running on battery for:		$(seconds_to_hms "$((total_seconds+seconds_to_add))") (since last $charge_cycle_event)"
@@ -270,24 +248,16 @@ if [ -e "/sys/class/power_supply/BAT0/power_now" ]; then
     # Calculate power in milliWatts (mW) by dividing microWatts by 1000
     power_mw=$((power_now / 1000000))
     power_mw=$(awk "BEGIN {print $power_now / 1000000}")
-    echo "Current power usage:		${power_mw} W"
+    echo "Current power usage:		${power_mw} W ($cur_state)"
 else
     #it was not read, try from the upower file
     read -r _ power_mw __ ___ <<< $(upower -i /org/freedesktop/UPower/devices/battery_BAT0 | grep energy-rate)
-    echo "Current power usage:		${power_mw} W (upower)"
+    echo "Current power usage:		${power_mw} W (upower, $cur_state)"
 fi
 
-# only show the results if there is enough data
-# if ((difference_bat <= 1)); then
-#     #echo $difference_bat
-#     echo "Discharging started at $bat_lastcharge_store %. At least 1% discharge is needed, leaving..."
-#     exit 1  # Exit the script with a non-zero status code
-# fi
-
-# Shows the results of calculations
 echo ""
+if [[ $cycle == 0 ]]; then
 echo "Time to empty:			$(seconds_to_hms "estimated_empty_time")"
-if [ $verbose -eq 1 ]; then
 echo "Battery cycle duration:		$(seconds_to_hms "estimated_cycleempty_time")"
 fi
 echo "Battery full-span:		$(seconds_to_hms "estimated_fullempty_time")"
