@@ -136,8 +136,8 @@ for ((i=${#lines[@]}-1; i>=0; i--)); do
             shift=2
             #echo "shift it!"
         fi
-        #echo "we are at line $i which is : $line"
-        #echo "we are interested in line ${lines[$i+$shift]}"
+        echo "we are at line $i which is : $line"
+        echo "we are interested in line ${lines[$i+$shift]}"
 
         if [[ $cur_cycle == $cycle ]]; then
             read -r start_bat bat_lastchargeread _ <<< "${lines[$i+$shift]} | tr , ."  
