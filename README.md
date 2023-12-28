@@ -5,7 +5,7 @@ This is batfetch (former poweranalyser), a simple bash script to read the curren
 ## How to run
 
 simply execute the bash script (*sudo is not needed*).
-> use `batfetct -c 1` to analyse previous cycle  
+> use `batfetch -c 1` to analyse previous cycle  
 > 
 > use `batfetch --getcycles` to see how many cycles are available to read
 
