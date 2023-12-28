@@ -161,10 +161,15 @@ for ((i=${#lines[@]}-1; i>=0; i--)); do
             
             #we are checking if the cycle is the current one, if it is (cycle=0) make some updates to read values and present info
             if [[ $cycle -gt 0 ]]; then
-            echo "until $(date -d "@$end_bat" +"%d/%m/%y at %T") with $charge_status_end_num%"
+                echo "until $(date -d "@$end_bat" +"%d/%m/%y at %T") with $charge_status_end_num%"
             else
-            charge_status_end_num=$cur_battery_percent
-            echo "until now (current cycle) with $charge_status_end_num"
+                #we should only do this if we are discharging
+                if [[ $cur_state == "discharging" ]]; then
+                    charge_status_end_num=$cur_battery_percent
+                    echo "until now (current cycle) with $charge_status_end_num"
+                else
+                    echo "until $(date -d "@$end_bat" +"%d/%m/%y at %T") with $charge_status_end_num%, now we are charging the battery."
+                fi
             fi
             
             seconds_elapsed=$((end_bat - start_bat))
