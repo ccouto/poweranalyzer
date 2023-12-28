@@ -140,16 +140,25 @@ for ((i=${#lines[@]}-1; i>=0; i--)); do
     if [[ $line == *"	discharging"* ]] && [[ $last_discharging_line == "" ]]; then
         last_discharging_line=$line
     fi
-    if [[ $line == *"	charging"* ]] && [[ -n $last_discharging_line ]]; then
-    
+    if [[ $line == *"	charging"* || $line == *"	fully-charged"* ]] && [[ -n $last_discharging_line ]]; then
+        shift=1
+        if [[ ${lines[$i+1]} == *"	unknown"* ]] || [[ ${lines[$i+1]} == *"	pending-charge"* ]] ; then
+            shift=2
+            #echo "shift it!"
+        fi
         #echo "we are at line $i which is : $line"
-        #echo "we are interested in line ${lines[$i+1]}"
+        #echo "we are interested in line ${lines[$i+$shift]}"
+
         if [[ $cur_period == $period ]]; then
-            read -r start_bat bat_lastchargeread _ <<< "${lines[$i+1]} | tr , ."  
+            read -r start_bat bat_lastchargeread _ <<< "${lines[$i+$shift]} | tr , ."  
             read -r end_bat charge_status_end _ <<< "$last_discharging_line | tr , ."    
             echo "Bat started at $bat_lastchargeread on $(date -d "@$start_bat" +"%d/%m/%y at %T")"
             echo "Bat ended at $charge_status_end on $(date -d "@$end_bat" +"%d/%m/%y at %T")"
             seconds_elapsed=$((end_bat - start_bat))
+            if [[ $seconds_elapsed == 0 ]]; then
+                echo "Please wait for battery to discharge a bit more (remember that there is a delay until it reaches the acpi log...)"
+                exit 1
+            fi
 
             #echo "Running on battery for:		$(seconds_to_hms "$((seconds_elapsed))") (since last $charge_cycle_event)"
 
@@ -242,7 +251,7 @@ estimated_empty_time=$(printf "%.0f" $estimated_empty_time)
     estimated_fullempty_time=$(awk -v er="$avr_power_usage" -v cb="$bat_full" 'BEGIN {print (cb/er) * 3600}')
     estimated_fullempty_time=$(printf "%.0f" "$estimated_fullempty_time")
 #else
-    estimated_cycleempty_time=$((estimated_empty_time + total_seconds + seconds_to_add))
+    estimated_cycleempty_time=$((estimated_empty_time + seconds_elapsed))
 #fi
 
 # Show the result for running on bat
