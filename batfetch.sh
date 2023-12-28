@@ -140,8 +140,8 @@ for ((i=${#lines[@]}-1; i>=0; i--)); do
         echo "we are interested in line ${lines[$i+$shift]}"
 
         if [[ $cur_cycle == $cycle ]]; then
-            read -r start_bat bat_lastchargeread _ <<< "${lines[$i+$shift]} | tr , ."  
-            read -r end_bat charge_status_end _ <<< "$last_discharging_line | tr , ."    
+            read -r start_bat bat_lastchargeread _ <<< "${lines[$i+$shift]} "  
+            read -r end_bat charge_status_end _ <<< "$last_discharging_line "    
             bat_lastchargeread_num=$(awk "BEGIN {print $bat_lastchargeread}")
             charge_status_end_num=$(awk "BEGIN {print $charge_status_end}")
 
