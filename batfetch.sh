@@ -129,9 +129,9 @@ last_discharging_line=""
 cur_cycle=0
 
 # Loop through the array in reverse
-for ((i=${#lines[@]}-1; i>=0; i--)); do
+for ((i=${#lines[@]}; i>=0; i--)); do
     line="${lines[$i]}"
-    
+        
     if [[ $line == *"	discharging"* ]] && [[ $last_discharging_line == "" ]]; then
         last_discharging_line=$line
     fi
@@ -166,6 +166,7 @@ for ((i=${#lines[@]}-1; i>=0; i--)); do
                 #we should only do this if we are discharging
                 if [[ $cur_state == "discharging" ]]; then
                     charge_status_end_num=$cur_battery_percent
+                    end_bat=$(date +%s)
                     echo "until now (current cycle) with $charge_status_end_num"
                 else
                     echo "until $(date -d "@$end_bat" +"%d/%m/%y at %T") with $charge_status_end_num%, now we are charging the battery."
