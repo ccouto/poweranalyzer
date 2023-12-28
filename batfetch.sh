@@ -152,8 +152,11 @@ for ((i=${#lines[@]}-1; i>=0; i--)); do
         if [[ $cur_period == $period ]]; then
             read -r start_bat bat_lastchargeread _ <<< "${lines[$i+$shift]} | tr , ."  
             read -r end_bat charge_status_end _ <<< "$last_discharging_line | tr , ."    
-            echo "Bat started at $bat_lastchargeread on $(date -d "@$start_bat" +"%d/%m/%y at %T")"
-            echo "Bat ended at $charge_status_end on $(date -d "@$end_bat" +"%d/%m/%y at %T")"
+            bat_lastchargeread_num=$(awk "BEGIN {print $bat_lastchargeread}")
+            charge_status_end_num=$(awk "BEGIN {print $charge_status_end}")
+
+            echo "Bat started at $bat_lastchargeread_num% on $(date -d "@$start_bat" +"%d/%m/%y at %T")"
+            echo "Bat ended at $charge_status_end_num% on $(date -d "@$end_bat" +"%d/%m/%y at %T")"
             seconds_elapsed=$((end_bat - start_bat))
             if [[ $seconds_elapsed == 0 ]]; then
                 echo "Please wait for battery to discharge a bit more (remember that there is a delay until it reaches the acpi log...)"
