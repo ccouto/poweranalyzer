@@ -182,7 +182,7 @@ for ((i=${#lines[@]}-1; i>=0; i--)); do
 
             for ((j=0; j<${#lines_jctl[@]}; j++)); do
 
-                if [[ ${lines_jctl[$j]} == *"Starting System Suspend"* ]]; then
+                if [[ ${lines_jctl[$j]} == *"Suspend"* ]]; then
                     sleep_start=$(echo "${lines_jctl[$j]}" | awk '{print $1}')
                     sleep_end=$(echo "${lines_jctl[$j+1]}" | awk '{print $1}')
                     # Convert short ISO dates to Unix timestamps
