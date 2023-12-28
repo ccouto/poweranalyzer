@@ -24,6 +24,7 @@ while [ $# -gt 0 ]; do
             echo "Available options are:"
             echo "--getcycles   gives the number of cycles currently available on the acpi log"
             echo "--cycle %num   gives the battery info the cycle %num, example --cycle 0 gives info for last cycle"
+            echo "--debug       enables debug"
             echo ""
             echo "The output is as follows:"
             echo ""
