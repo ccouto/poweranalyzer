@@ -140,6 +140,10 @@ for ((i=${#lines[@]}; i>=0; i--)); do
         if [[ ${lines[$i+1]} == *"	unknown"* ]] || [[ ${lines[$i+1]} == *"	pending-charge"* ]] ; then
             shift=2
             #echo "shift it!"
+		if [[ ${lines[$i+2]} == *"	unknown"* ]] || [[ ${lines[$i+2]} == *"	pending-charge"* ]] ; then
+		    shift=3
+		    #echo "shift it!"
+		fi
         fi
         
         #some debug lines
