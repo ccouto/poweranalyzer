@@ -207,6 +207,19 @@ for ((i=${#lines[@]}; i>=0; i--)); do
                     sleep_total=$((sleep_total+$sleep_seconds_elapsed))
                     
                 fi
+                if [[ ${lines_jctl[$j]} == *"Starting System Hibernate"* ]]; then
+                    sleep_start=$(echo "${lines_jctl[$j-1]}" | awk '{print $1}')
+                    sleep_end=$(echo "${lines_jctl[$j+1]}" | awk '{print $1}')
+                    # Convert short ISO dates to Unix timestamps
+                    sleep_start=$(date -d "$sleep_start" +%s)
+                    sleep_end=$(date -d "$sleep_end" +%s)
+
+                    # Calculate the time difference in seconds
+                    sleep_seconds_elapsed=$((sleep_end - sleep_start))
+                    seconds_elapsed=$((seconds_elapsed - sleep_seconds_elapsed))
+                    shutdown_total=$((shutdown_total+$sleep_seconds_elapsed))
+                    
+                fi
                 if [[ ${lines_jctl[$j]} == *"-- Boot"* ]]; then
                     sleep_start=$(echo "${lines_jctl[$j-1]}" | awk '{print $1}')
                     sleep_end=$(echo "${lines_jctl[$j+1]}" | awk '{print $1}')
